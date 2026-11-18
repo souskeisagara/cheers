@@ -11,7 +11,59 @@
   "artwork": {
     "cover": "assets/cover/mascot.jpg"
   },
+  "authentication": {
+    "methods": [
+      "qrCode"
+    ],
+    "presentation": {
+      "accountSubtitle": "你的热爱，来到大屏。",
+      "guestTitle": "欢迎来到 Cheers",
+      "guestDescription": "使用哔哩哔哩 App 扫码登录。",
+      "guestArtwork": "assets/account/2233-and-mascot.jpg",
+      "qrTitle": "把你的热爱，带到大屏。",
+      "qrDescription": "使用手机客户端扫码，在手机上确认登录。"
+    }
+  },
+  "permissions": {
+    "network": [
+      "passport.bilibili.com",
+      "api.bilibili.com",
+      "www.bilibili.com",
+      "i0.hdslb.com",
+      "i1.hdslb.com",
+      "i2.hdslb.com"
+    ]
+  },
+  "presentation": {
+    "creatorMark": "UP主",
+    "creatorGroupTitle": "来自你关注的 UP 主",
+    "membership": "大会员",
+    "mobileApp": "哔哩哔哩 App",
+    "sections": {
+      "tracking": "我的追番",
+      "courses": "已购课堂"
+    },
+    "search": {
+      "hint": "试试搜索视频、UP 主、番剧或直播间",
+      "creatorLabel": "UP",
+      "seriesLabel": "番剧影视"
+    },
+    "series": {
+      "trackLabel": "追番",
+      "trackedLabel": "已追番"
+    }
+  },
   "capabilities": [
-    "catalog.browse"
+    "catalog.browse",
+    "catalog.library",
+    "account.signIn",
+    "account.history",
+    "account.watchLater",
+    "account.favorites",
+    "account.notifications",
+    "account.editNotifications",
+    "account.editFavoriteFolders",
+    "account.editHistory",
+    "account.editWatchLater"
   ]
 }
