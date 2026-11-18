@@ -64,6 +64,7 @@
     "account.editNotifications",
     "account.editFavoriteFolders",
     "account.editHistory",
-    "account.editWatchLater"
+    "account.editWatchLater",
+    "catalog.item"
   ]
 }
