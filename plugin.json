@@ -65,6 +65,10 @@
     "account.editFavoriteFolders",
     "account.editHistory",
     "account.editWatchLater",
-    "catalog.item"
+    "catalog.item",
+    "catalog.videoComments",
+    "account.videoInteraction",
+    "account.videoComments",
+    "account.videoFavorites"
   ]
 }
