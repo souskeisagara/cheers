@@ -31,7 +31,15 @@
       "www.bilibili.com",
       "i0.hdslb.com",
       "i1.hdslb.com",
-      "i2.hdslb.com"
+      "i2.hdslb.com",
+      "bimp.hdslb.com",
+      "aisubtitle.hdslb.com",
+      "subtitle.hdslb.com",
+      "*.bilivideo.com",
+      "*.bilivideo.cn",
+      "*.bilivideo.net",
+      "*.v.smtcdns.net",
+      "*.smtcdns.com"
     ]
   },
   "presentation": {
@@ -69,6 +77,12 @@
     "catalog.videoComments",
     "account.videoInteraction",
     "account.videoComments",
-    "account.videoFavorites"
+    "account.videoFavorites",
+    "playback.resolve",
+    "playback.progress",
+    "playback.subtitles",
+    "playback.danmaku",
+    "account.danmaku",
+    "account.danmakuRules"
   ]
 }
