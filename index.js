@@ -8,3 +8,4 @@ export { readCreator, followCreator } from "./creator.js";
 export { readFollowing } from "./following.js";
 export { readSeries, trackSeries } from "./series.js";
 export { readLive } from "./live.js";
+export { connectLiveChat, sendLiveChat } from "./live_chat.js";

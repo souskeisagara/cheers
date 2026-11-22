@@ -41,7 +41,8 @@
       "*.v.smtcdns.net",
       "*.smtcdns.com",
       "s.search.bilibili.com",
-      "api.live.bilibili.com"
+      "api.live.bilibili.com",
+      "*.chat.bilibili.com"
     ]
   },
   "presentation": {
@@ -95,6 +96,8 @@
     "account.trackSeries",
     "account.tracking",
     "account.editTracking",
-    "catalog.live"
+    "catalog.live",
+    "live.chat",
+    "live.chatWrite"
   ]
 }
