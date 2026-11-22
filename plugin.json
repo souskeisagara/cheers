@@ -40,7 +40,8 @@
       "*.bilivideo.net",
       "*.v.smtcdns.net",
       "*.smtcdns.com",
-      "s.search.bilibili.com"
+      "s.search.bilibili.com",
+      "api.live.bilibili.com"
     ]
   },
   "presentation": {
@@ -93,6 +94,7 @@
     "catalog.series",
     "account.trackSeries",
     "account.tracking",
-    "account.editTracking"
+    "account.editTracking",
+    "catalog.live"
   ]
 }
