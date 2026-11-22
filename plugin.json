@@ -89,6 +89,10 @@
     "catalog.searchSuggest",
     "catalog.creator",
     "account.followCreator",
-    "catalog.following"
+    "catalog.following",
+    "catalog.series",
+    "account.trackSeries",
+    "account.tracking",
+    "account.editTracking"
   ]
 }

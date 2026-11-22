@@ -6,3 +6,4 @@ export { resolvePlayback, reportPlayback, readDanmaku, postDanmaku, readDanmakuR
 export { search, searchSuggest } from "./search.js";
 export { readCreator, followCreator } from "./creator.js";
 export { readFollowing } from "./following.js";
+export { readSeries, trackSeries } from "./series.js";
