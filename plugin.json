@@ -86,6 +86,8 @@
     "account.danmaku",
     "account.danmakuRules",
     "catalog.search",
-    "catalog.searchSuggest"
+    "catalog.searchSuggest",
+    "catalog.creator",
+    "account.followCreator"
   ]
 }
