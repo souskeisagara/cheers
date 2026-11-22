@@ -5,3 +5,4 @@ export { editVideo, videoComments, videoFavoriteFolders, editVideoFavoriteFolder
 export { resolvePlayback, reportPlayback, readDanmaku, postDanmaku, readDanmakuRules, addDanmakuRule, removeDanmakuRule, readSubtitles } from "./playback.js";
 export { search, searchSuggest } from "./search.js";
 export { readCreator, followCreator } from "./creator.js";
+export { readFollowing } from "./following.js";
