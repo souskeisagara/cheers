@@ -39,7 +39,8 @@
       "*.bilivideo.cn",
       "*.bilivideo.net",
       "*.v.smtcdns.net",
-      "*.smtcdns.com"
+      "*.smtcdns.com",
+      "s.search.bilibili.com"
     ]
   },
   "presentation": {
@@ -83,6 +84,8 @@
     "playback.subtitles",
     "playback.danmaku",
     "account.danmaku",
-    "account.danmakuRules"
+    "account.danmakuRules",
+    "catalog.search",
+    "catalog.searchSuggest"
   ]
 }

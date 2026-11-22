@@ -3,3 +3,4 @@ export { editFavoriteFolder, markNotificationsRead, readAccount, removeAccountIt
 export { browse, getItem } from "./recommendations.js";
 export { editVideo, videoComments, videoFavoriteFolders, editVideoFavoriteFolders } from "./video.js";
 export { resolvePlayback, reportPlayback, readDanmaku, postDanmaku, readDanmakuRules, addDanmakuRule, removeDanmakuRule, readSubtitles } from "./playback.js";
+export { search, searchSuggest } from "./search.js";
