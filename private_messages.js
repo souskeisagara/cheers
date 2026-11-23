@@ -388,11 +388,15 @@ export async function markPrivateMessagesRead({ all = false, conversationID = ""
         ackList.push({ uid, seq });
       }
     }
-    if (ackList.length === 0) {
-      const data = await imPayload(await imRequest("/session_svr/v1/session_svr/get_sessions", {
-        params: { session_type: 1, group_fold: 1, unfollow_fold: 0, sort_rule: 2, size: 50, ...web }
-      }));
-      for (const item of Array.isArray(data?.session_list) ? data.session_list : []) {
+    // Paginate through all session pages so unread conversations beyond the first
+    // loaded UI page are also acknowledged in a single mark-all-read action.
+    let endTS = "";
+    for (let page = 0; page < 25; page++) {
+      const params = { session_type: 1, group_fold: 1, unfollow_fold: 0, sort_rule: 2, size: 50, ...web };
+      if (endTS) params.end_ts = endTS;
+      const data = await imPayload(await imRequest("/session_svr/v1/session_svr/get_sessions", { params }));
+      const rawList = Array.isArray(data?.session_list) ? data.session_list : [];
+      for (const item of rawList) {
         if (Number(item?.session_type) !== 1) continue;
         const uid = identifier(item?.talker_id);
         const seq = identifier(item?.max_seqno);
@@ -402,6 +406,10 @@ export async function markPrivateMessagesRead({ all = false, conversationID = ""
           ackList.push({ uid, seq });
         }
       }
+      const hasMore = data?.has_more === 1 || data?.has_more === true;
+      const nextTS = identifier(rawList.at(-1)?.session_ts);
+      if (!hasMore || !positiveID(nextTS) || nextTS === endTS) break;
+      endTS = nextTS;
     }
     for (let i = 0; i < ackList.length; i += 6) {
       await Promise.all(ackList.slice(i, i + 6).map(item => ackSession(item.uid, item.seq, csrf)));

@@ -3,7 +3,7 @@
   "name": "Cheers",
   "description": "视频、番剧与直播",
   "kind": "source",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "apiVersion": 1,
   "minAppVersion": "0.1.0",
   "license": "Apache-2.0",

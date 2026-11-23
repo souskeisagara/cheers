@@ -4,7 +4,7 @@ Community video source plugin for MikuTV on Apple TV.
 
 - **Plugin ID**: `cheers`
 - **Kind**: `source`
-- **Version**: `1.0.0`
+- **Version**: `1.0.1`
 - **License**: Apache-2.0
 
 ## Installation
