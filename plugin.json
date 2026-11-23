@@ -102,6 +102,7 @@
     "live.chat",
     "live.chatWrite",
     "account.privateMessages",
-    "account.writePrivateMessages"
+    "account.writePrivateMessages",
+    "account.courses"
   ]
 }
