@@ -1,6 +1,6 @@
 import { optionalData, payload, request } from "./auth.js";
 import { fetchCourseSeason, parseCourseEpisodes, parseCourseID } from "./course.js";
-import { fetchSeason, parseSeasonEpisodes, parseSeasonID } from "./series.js";
+import { fetchSeason, parseSeasonEpisodes, parseSeasonID, parseSectionEpisodes } from "./series.js";
 
 const api = "https://api.bilibili.com";
 
@@ -31,7 +31,7 @@ export async function view(ref, { allowMissing = false } = {}) {
     if (!seasonID) throw { code: "permission" };
     const data = await fetchSeason(seasonID);
     const episodes = parseSeasonEpisodes(data);
-    const first = episodes.find(ep => !ep.unavailable && ep.aid) ?? episodes.find(ep => ep.aid);
+    const first = episodes.find(ep => !ep.unavailable && ep.aid) ?? episodes.find(ep => ep.aid) ?? parseSectionEpisodes(data).find(ep => ep.aid);
     if (!first?.aid) {
       if (allowMissing) return null;
       throw { code: "expired" };
@@ -111,7 +111,8 @@ export async function videoDiscussion(row, fallback) {
 }
 
 export async function videoComments({ ref, order, threadID, page = 0 }) {
-  const row = await view(ref);
+  const row = await view(ref, { allowMissing: ref?.kind === "series" || ref?.kind === "course" });
+  if (!row) return { comments: [] };
   const oid = positiveID(row?.aid);
   const creator = positiveID(row?.owner?.mid);
   if (!oid) throw { code: "expired" };

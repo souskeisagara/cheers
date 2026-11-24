@@ -493,41 +493,69 @@ function formatEpisodeTitle(ep, index) {
   return `\u7b2c ${index + 1} \u96c6`;
 }
 
+function parseRawSeasonEpisode(ep, index, fallbackBadge = "") {
+  const title = formatEpisodeTitle(ep, index);
+  const epID = positiveID(ep?.id);
+  const aid = positiveID(ep?.aid);
+  const cid = positiveID(ep?.cid);
+  const bvid = text(ep?.bvid);
+  const partID = cid || epID;
+  const durationMs = count(ep?.duration);
+  const epStatus = Number(ep?.status ?? 2);
+  const upcoming = !partID || epStatus === 14;
+  const badge = text(ep?.badge) || text(ep?.badge_info?.text) || text(fallbackBadge);
+  return {
+    title,
+    partID: upcoming ? undefined : partID,
+    durationSeconds: !upcoming && durationMs !== undefined ? Math.round(durationMs / 1000) : undefined,
+    unavailable: upcoming || undefined,
+    status: upcoming ? "\u5c1a\u672a\u66f4\u65b0" : (badge || undefined),
+    epID,
+    aid,
+    cid,
+    bvid: /^BV[a-zA-Z0-9]+$/.test(bvid) ? bvid : undefined,
+    epStatus,
+    pubTime: count(ep?.pub_time),
+    cover: ep?.cover
+  };
+}
+
+export function parseSectionEpisodes(data) {
+  const sections = Array.isArray(data?.section) ? data.section : [];
+  const out = [];
+  const seen = new Set();
+  for (const sec of sections) {
+    const secTitle = text(sec?.title);
+    const eps = Array.isArray(sec?.episodes) ? sec.episodes : [];
+    for (let i = 0; i < eps.length; i++) {
+      const item = parseRawSeasonEpisode(eps[i], out.length, secTitle);
+      const key = item.partID || item.epID || item.aid;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+    }
+  }
+  return out;
+}
+
 export function parseSeasonEpisodes(data) {
   const raw = Array.isArray(data?.episodes) ? data.episodes : [];
   const parsed = [];
   for (let i = 0; i < raw.length; i++) {
-    const ep = raw[i];
-    const title = formatEpisodeTitle(ep, i);
-    const epID = positiveID(ep?.id);
-    const aid = positiveID(ep?.aid);
-    const cid = positiveID(ep?.cid);
-    const bvid = text(ep?.bvid);
-    const partID = cid || epID;
-    const durationMs = count(ep?.duration);
-    const epStatus = Number(ep?.status ?? 2);
-    const upcoming = !partID || epStatus === 14;
-    const badge = text(ep?.badge) || text(ep?.badge_info?.text);
-    parsed.push({
-      title,
-      partID: upcoming ? undefined : partID,
-      durationSeconds: !upcoming && durationMs !== undefined ? Math.round(durationMs / 1000) : undefined,
-      unavailable: upcoming || undefined,
-      status: upcoming ? "\u5c1a\u672a\u66f4\u65b0" : (badge || undefined),
-      epID,
-      aid,
-      cid,
-      bvid: /^BV[a-zA-Z0-9]+$/.test(bvid) ? bvid : undefined,
-      epStatus,
-      pubTime: count(ep?.pub_time)
-    });
+    parsed.push(parseRawSeasonEpisode(raw[i], i));
+  }
+  if (!parsed.some(ep => !ep.unavailable)) {
+    const extras = parseSectionEpisodes(data).filter(ep => !ep.unavailable || ep.aid);
+    if (extras.length) {
+      parsed.unshift(...extras);
+    }
   }
   const total = count(data?.total);
   const isFinish = data?.publish?.is_finish === 1;
-  if (!isFinish && total !== undefined && total > parsed.length) {
-    const remaining = Math.min(total - parsed.length, 12);
+  if (!isFinish && total !== undefined && total > raw.length) {
+    const remaining = Math.min(total - raw.length, 12);
     for (let i = 0; i < remaining; i++) {
-      const n = parsed.length + 1;
+      const n = raw.length + i + 1;
       parsed.push({
         title: `\u7b2c ${n} \u96c6`,
         unavailable: true,
@@ -609,8 +637,8 @@ export async function getSeriesDetail(id, { includeSections = false, signedIn = 
   const parsed = parseSeasonEpisodes(data);
   const segments = toEpisodeSegments(parsed);
   const firstPlayable = parsed.find(ep => !ep.unavailable);
-  const firstCommentEpisode = parsed.find(ep => !ep.unavailable && ep.aid) ?? parsed.find(ep => ep.aid);
-  const firstCover = data?.horizontal_cover_169 || data?.episodes?.[0]?.cover || data?.cover;
+  const firstCommentEpisode = parsed.find(ep => !ep.unavailable && ep.aid) ?? parsed.find(ep => ep.aid) ?? parseSectionEpisodes(data).find(ep => ep.aid);
+  const firstCover = data?.horizontal_cover_169 || data?.episodes?.[0]?.cover || firstPlayable?.cover || parsed[0]?.cover || data?.cover;
   const views = count(data?.stat?.views);
   const comments = count(data?.stat?.reply);
   const publishedAt = firstPlayable?.pubTime ?? parsePublishTimestamp(data?.publish?.pub_time);
