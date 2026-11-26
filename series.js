@@ -1,4 +1,5 @@
 import { optionalData, payload, request, webHeaders } from "./auth.js";
+import { bumpCacheGeneration, cacheDelete, cacheGeneration, cached, relationGeneration } from "./cache.js";
 import { cover, coverSource } from "./recommendations.js";
 
 const site = "https://api.bilibili.com";
@@ -34,6 +35,31 @@ const defaultSortOptions = [
   { value: "2", label: "\u64ad\u653e\u6570\u91cf" },
   { value: "5", label: "\u5f00\u64ad\u65f6\u95f4" }
 ];
+
+// Season metadata embeds user_status and the uploader follow flag, so its key
+// carries the relation generation and tracking changes delete it directly.
+const seasonTTL = 600;
+// The tracked list gates "tracked" badges across hub, index and calendar.
+const trackedTTL = 300;
+// Index filters and related seasons are editorial data that rarely changes.
+const catalogTTL = 1800;
+
+function seasonKey(seasonID) {
+  return `season:${seasonID}:${cacheGeneration(relationGeneration)}`;
+}
+
+function trackedKey(owner) {
+  return `tracked:${owner}:${cacheGeneration("tracking")}`;
+}
+
+// Removal from the library does not receive the owner, so tracking changes
+// rotate a generation instead of deleting an owner-specific key.
+export function forgetTrackedSeasons(seasonIDs = []) {
+  bumpCacheGeneration("tracking");
+  for (const id of seasonIDs) {
+    if (positiveID(id)) cacheDelete(seasonKey(id));
+  }
+}
 
 const preferredFilterFields = ["area", "year", "release_date", "is_finish", "style_id", "season_status"];
 
@@ -146,12 +172,19 @@ function mapIndexRow(row, seasonType, trackedSet) {
 
 async function fetchTrackedSet(owner) {
   if (!positiveID(owner)) return { set: new Set(), entries: [] };
-  const [anime, cinema] = await Promise.all([
-    pgcGet("/x/space/bangumi/follow/list", { type: 1, vmid: owner, pn: 1, ps: 30 })
-      .catch(error => optionalData(error, { list: [] })),
-    pgcGet("/x/space/bangumi/follow/list", { type: 2, vmid: owner, pn: 1, ps: 30 })
-      .catch(error => optionalData(error, { list: [] }))
-  ]);
+  let complete = true;
+  const lists = await cached(trackedKey(owner), trackedTTL, async () => {
+    const partial = error => {
+      complete = false;
+      return optionalData(error, { list: [] });
+    };
+    const [anime, cinema] = await Promise.all([
+      pgcGet("/x/space/bangumi/follow/list", { type: 1, vmid: owner, pn: 1, ps: 30 }).catch(partial),
+      pgcGet("/x/space/bangumi/follow/list", { type: 2, vmid: owner, pn: 1, ps: 30 }).catch(partial)
+    ]);
+    return { anime: anime ?? null, cinema: cinema ?? null };
+  }, () => complete);
+  const { anime, cinema } = lists;
   const set = new Set();
   const entries = [];
   for (const row of [...(anime?.list ?? []), ...(cinema?.list ?? [])]) {
@@ -182,9 +215,9 @@ async function fetchTrackedSet(owner) {
 }
 
 async function fetchIndexConditions(seasonType) {
-  const data = await pgcGet("/pgc/season/index/condition", {
+  const data = await cached(`pgc-condition:${seasonType}`, catalogTTL, () => pgcGet("/pgc/season/index/condition", {
     season_type: seasonType, type: 1
-  }).catch(error => optionalData(error, null));
+  })).catch(error => optionalData(error, null));
   const groups = [
     { key: "season_type", label: "\u7c7b\u578b", options: indexGenreOptions }
   ];
@@ -460,10 +493,51 @@ export function parseSeasonID(id) {
   return match ? match[1] : undefined;
 }
 
+// Raw season payloads reach megabytes for long-running shows, beyond host.cache's
+// per-entry limit. Every caller receives this projection, cached or not, so a
+// field missing here surfaces immediately rather than only on cache hits.
+const seasonFields = ["season_title", "title", "total", "rating", "styles", "type_desc", "horizontal_cover_169",
+  "cover", "stat", "up_info", "evaluate", "new_ep", "publish", "rights", "user_status"];
+const seasonEpisodeFields = ["title", "long_title", "show_title", "id", "aid", "cid", "bvid", "duration", "status",
+  "badge", "pub_time", "cover"];
+
+function pick(source, fields) {
+  const out = {};
+  for (const field of fields) {
+    if (source[field] !== undefined) out[field] = source[field];
+  }
+  return out;
+}
+
+function slimSeasonEpisode(ep) {
+  if (!ep || typeof ep !== "object") return ep;
+  const out = pick(ep, seasonEpisodeFields);
+  if (ep.badge_info && typeof ep.badge_info === "object" && ep.badge_info.text !== undefined) {
+    out.badge_info = { text: ep.badge_info.text };
+  }
+  return out;
+}
+
+function slimSeason(data) {
+  if (!data || typeof data !== "object") return data;
+  const out = pick(data, seasonFields);
+  if (data.episodes !== undefined) {
+    out.episodes = Array.isArray(data.episodes) ? data.episodes.map(slimSeasonEpisode) : data.episodes;
+  }
+  if (data.section !== undefined) {
+    out.section = Array.isArray(data.section) ? data.section.map(sec => sec && typeof sec === "object" ? {
+      title: sec.title,
+      episodes: Array.isArray(sec.episodes) ? sec.episodes.map(slimSeasonEpisode) : sec.episodes
+    } : sec) : data.section;
+  }
+  return out;
+}
+
 export async function fetchSeason(seasonID) {
   const sid = positiveID(seasonID);
   if (!sid) throw { code: "unsupported" };
-  return pgcGet("/pgc/view/web/season", { season_id: sid });
+  return cached(seasonKey(sid), seasonTTL, async () => slimSeason(await pgcGet("/pgc/view/web/season", { season_id: sid })),
+    data => data != null && typeof data === "object");
 }
 
 function parsePublishTimestamp(raw) {
@@ -623,7 +697,8 @@ export async function getSeriesDetail(id, { includeSections = false, signedIn = 
   const [data, relatedData, userStatus] = await Promise.all([
     fetchSeason(seasonID),
     includeSections
-      ? pgcGet("/pgc/season/web/related/recommend", { season_id: seasonID }).catch(error => optionalData(error, null))
+      ? cached(`pgc-related:${seasonID}`, catalogTTL, () => pgcGet("/pgc/season/web/related/recommend", { season_id: seasonID }))
+          .catch(error => optionalData(error, null))
       : Promise.resolve(null),
     signedIn
       ? pgcGet("/pgc/view/web/season/user/status", { season_id: seasonID }).catch(error => optionalData(error, null))
@@ -697,5 +772,6 @@ export async function trackSeries({ ref, enabled = false, owner, secret } = {}) 
   const path = enabled ? "/pgc/web/follow/add" : "/pgc/web/follow/del";
   const response = await request(site + path, { season_id: seasonID, csrf });
   await payload(response);
+  forgetTrackedSeasons([seasonID]);
   return { tracked: Boolean(enabled) };
 }

@@ -1,4 +1,5 @@
 import { currentAccount, optionalData, payload, request, webHeaders } from "./auth.js";
+import { cached } from "./cache.js";
 import { collection, cover, parts } from "./recommendations.js";
 import { fetchCourseSeason, isCourseOwned, parseCourseEpisodes, parseCourseID, toCourseSegments } from "./course.js";
 import { resolveInteractiveBranch } from "./interactive.js";
@@ -48,6 +49,16 @@ async function getPlayURL(episode, params) {
     }
   }
   return get(playURLPath, params);
+}
+
+// Thumbnail sheets point at static, unsigned image assets keyed by archive and
+// part, yet were refetched on every quality or episode switch.
+const videoshotTTL = 1800;
+
+function videoshot(params) {
+  const target = params.bvid ? "b" + params.bvid : "a" + params.aid;
+  return cached(`videoshot:${target}:${params.cid}`, videoshotTTL, () => get("/x/player/videoshot", params),
+    value => value != null && typeof value === "object");
 }
 
 function id(value) {
@@ -367,7 +378,7 @@ async function resolveSeriesPlayback({ ref, partID, quality, preferredQuality = 
   const shotParams = cid ? (chosenEp.bvid ? { bvid: chosenEp.bvid, cid, index: 1 } : aid ? { aid, cid, index: 1 } : undefined) : undefined;
   const [player, sheet] = await Promise.all([
     v2Params ? get("/x/player/wbi/v2", v2Params).catch(() => undefined) : Promise.resolve(undefined),
-    shotParams ? get("/x/player/videoshot", shotParams).catch(() => undefined) : Promise.resolve(undefined)
+    shotParams ? videoshot(shotParams).catch(() => undefined) : Promise.resolve(undefined)
   ]);
   return {
     ...common, quality: String(chosen), streams, restriction,
@@ -478,7 +489,7 @@ async function resolveCoursePlayback({ ref, partID, quality, preferredQuality = 
   const shotParams = aid && cid ? { aid, cid, index: 1 } : undefined;
   const [player, sheet] = await Promise.all([
     v2Params ? get("/x/player/wbi/v2", v2Params).catch(() => undefined) : Promise.resolve(undefined),
-    shotParams ? get("/x/player/videoshot", shotParams).catch(() => undefined) : Promise.resolve(undefined)
+    shotParams ? videoshot(shotParams).catch(() => undefined) : Promise.resolve(undefined)
   ]);
   return {
     ...common, quality: String(chosen), streams, restriction,
@@ -577,7 +588,7 @@ export async function resolvePlayback({ ref, partID, quality, preferredQuality =
   const v2Params = signWbiParams({ aid, cid }) ?? { aid, cid };
   const [player, sheet] = await Promise.all([
     get("/x/player/wbi/v2", v2Params).catch(() => undefined),
-    get("/x/player/videoshot", { bvid: ref.id, cid, index: 1 }).catch(() => undefined)
+    videoshot({ bvid: ref.id, cid, index: 1 }).catch(() => undefined)
   ]);
   const branch = (interactive || player?.interaction?.graph_version)
     ? await resolveInteractiveBranch({ aid, player, duration, branchID, branchState })

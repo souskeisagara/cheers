@@ -1,4 +1,5 @@
 import { optionalData, payload, request, webHeaders } from "./auth.js";
+import { cached } from "./cache.js";
 import { cover, coverSource, durationText, video } from "./recommendations.js";
 
 const site = "https://api.bilibili.com";
@@ -181,14 +182,20 @@ function durationMatches(seconds, duration) {
   }
 }
 
+// Trending keywords are shown on every first discovery page; five minutes keeps
+// them current without refetching on each tab switch.
+const hotKeywordsTTL = 300;
+
 async function hotKeywords() {
-  const data = await payload(await request(endpoint(site, "/x/web-interface/wbi/search/square", { limit: 10 })));
-  const list = data?.trending?.list;
-  if (!Array.isArray(list)) return [];
-  return list
-    .map(entry => text(entry?.keyword || entry?.show_name))
-    .filter(Boolean)
-    .slice(0, 10);
+  return cached("hot-keywords", hotKeywordsTTL, async () => {
+    const data = await payload(await request(endpoint(site, "/x/web-interface/wbi/search/square", { limit: 10 })));
+    const list = data?.trending?.list;
+    if (!Array.isArray(list)) return [];
+    return list
+      .map(entry => text(entry?.keyword || entry?.show_name))
+      .filter(Boolean)
+      .slice(0, 10);
+  }, keywords => keywords.length > 0);
 }
 
 async function searchVideos(query, sort, duration, page) {

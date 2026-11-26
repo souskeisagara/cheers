@@ -1,5 +1,6 @@
 import { optionalData, payload, request } from "./auth.js";
 import { cover } from "./recommendations.js";
+import { forgetTrackedSeasons } from "./series.js";
 
 const api = "https://api.bilibili.com";
 const messages = "https://message.bilibili.com";
@@ -146,8 +147,12 @@ export async function removeAccountItems({section, ids, secret}) {
       await post("/x/v2/history/toview/del", { aid: id });
     }
   } else if (section === "tracking" && ids.every(positiveID)) {
-    for (const id of ids) {
-      await post("/pgc/web/follow/del", { season_id: id });
+    try {
+      for (const id of ids) {
+        await post("/pgc/web/follow/del", { season_id: id });
+      }
+    } finally {
+      forgetTrackedSeasons(ids);
     }
   } else {
     throw { code: "permission" };

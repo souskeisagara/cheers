@@ -1,4 +1,5 @@
 import { optionalData, payload, webHeaders } from "./auth.js";
+import { cacheGeneration, cached, relationGeneration } from "./cache.js";
 import { cover, coverSource } from "./recommendations.js";
 
 const site = "https://api.bilibili.com";
@@ -58,9 +59,22 @@ export async function pugvGet(path, params = {}, referer = "https://www.bilibili
   return payload(response, () => body);
 }
 
+// Course metadata gates playback on user_status.payed. Purchases happen outside
+// the plugin, so unowned courses are only held long enough to cover the
+// detail-to-playback burst; owned ones keep a longer TTL.
+const ownedCourseTTL = 600;
+const unownedCourseTTL = 60;
+
 export async function fetchCourseSeason(seasonID) {
   const sid = positiveID(seasonID);
   if (!sid) throw { code: "unsupported" };
+  return cached(`course:${sid}:${cacheGeneration(relationGeneration)}`,
+    data => isCourseOwned(data) ? ownedCourseTTL : unownedCourseTTL,
+    () => loadCourseSeason(sid),
+    data => data != null && typeof data === "object");
+}
+
+async function loadCourseSeason(sid) {
   const referer = `https://www.bilibili.com/cheese/play/ss${sid}`;
   const data = await pugvGet("/pugv/view/web/season", { season_id: sid }, referer);
   if (data?.episode_page?.next && Array.isArray(data.episodes) && data.episodes.length < maxCourseEpisodes) {

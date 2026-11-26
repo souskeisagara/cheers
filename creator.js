@@ -1,4 +1,5 @@
 import { optionalData, payload, request, webHeaders } from "./auth.js";
+import { bumpCacheGeneration, cacheGeneration, cached, relationGeneration } from "./cache.js";
 import { archiveCategoryNames } from "./categories.js";
 import { fetchCreatorCourses } from "./course.js";
 import { cover, coverSource, durationText } from "./recommendations.js";
@@ -143,8 +144,14 @@ function topCategories(tlist) {
   return names.join(" \u00b7 ");
 }
 
+// The profile card is refetched on every tab switch and embeds the follow flag,
+// so it is keyed by the relation generation that follow mutations rotate.
+const cardTTL = 600;
+
 async function fetchCard(mid, signedIn) {
-  const data = await spaceRequest("/x/web-interface/card", { mid, photo: "true" }, { mid });
+  const data = await cached(`card:${mid}:${cacheGeneration(relationGeneration)}`, cardTTL,
+    () => spaceRequest("/x/web-interface/card", { mid, photo: "true" }, { mid }),
+    value => Boolean(text(value?.card?.name)));
   const card = data?.card;
   const name = text(card?.name);
   if (!name) throw { code: "expired" };
@@ -359,5 +366,6 @@ export async function followCreator({ creatorID, enabled = false, owner, secret 
   if (!csrf || !positiveID(owner)) throw { code: "signIn" };
   if (!fid) throw { code: "permission" };
   await post("/x/relation/modify", { fid, act: enabled ? 1 : 2, re_src: 11, csrf });
+  bumpCacheGeneration(relationGeneration);
   return { following: Boolean(enabled) };
 }

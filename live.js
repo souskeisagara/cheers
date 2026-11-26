@@ -1,4 +1,5 @@
 import { optionalData, payload, request, webHeaders } from "./auth.js";
+import { cached } from "./cache.js";
 import { fetchLiveRooms } from "./following.js";
 
 const site = "https://api.bilibili.com";
@@ -156,8 +157,14 @@ function parseRoomCard(row, followedUIDs) {
   };
 }
 
+// Area taxonomy and anchor profiles are static between sessions; room state,
+// online counts and stream URLs are never cached.
+const liveCatalogTTL = 1800;
+
 async function fetchAreas() {
-  const data = await liveGet("/xlive/web-interface/v1/index/getWebAreaList", { source_id: 2 });
+  const data = await cached("live-areas", liveCatalogTTL,
+    () => liveGet("/xlive/web-interface/v1/index/getWebAreaList", { source_id: 2 }),
+    value => Array.isArray(value?.data) && value.data.length > 0);
   const raw = Array.isArray(data?.data) ? data.data : [];
   const areas = [{ id: "", label: "\u5168\u90e8" }];
   const seen = new Set([""]);
@@ -257,7 +264,10 @@ export async function getLiveDetail(id, { signedIn = false } = {}) {
   if (!title) throw { code: "expired" };
   const uid = positiveID(info?.uid);
   const [anchor, relation] = await Promise.all([
-    uid ? liveGet("/live_user/v1/Master/info", { uid }).catch(() => undefined) : Promise.resolve(undefined),
+    uid
+      ? cached(`live-anchor:${uid}`, liveCatalogTTL, () => liveGet("/live_user/v1/Master/info", { uid }),
+          value => Boolean(text(value?.info?.uname))).catch(() => undefined)
+      : Promise.resolve(undefined),
     signedIn && uid
       ? request(site + "/x/relation?fid=" + uid).then(res => payload(res)).catch(err => optionalData(err))
       : Promise.resolve(undefined)

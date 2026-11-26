@@ -1,4 +1,5 @@
 import { optionalData, payload, request } from "./auth.js";
+import { bumpCacheGeneration, cacheDelete, cacheGetJSON, cacheSetJSON, relationGeneration } from "./cache.js";
 import { fetchCourseSeason, parseCourseEpisodes, parseCourseID } from "./course.js";
 import { fetchSeason, parseSeasonEpisodes, parseSeasonID, parseSectionEpisodes } from "./series.js";
 
@@ -23,6 +24,27 @@ function number(value) {
 function positiveID(value) {
   const id = String(value ?? "");
   return /^[1-9]\d*$/.test(id) ? id : undefined;
+}
+
+// Archive metadata is shared by detail, comments, playback and interactions.
+// It carries no per-user state, so a short TTL only delays counter updates;
+// interactions that change counters drop the entry explicitly.
+const viewTTL = 300;
+
+function viewKey(bvid) {
+  return "view:" + bvid;
+}
+
+export async function viewBody(bvid) {
+  const hit = cacheGetJSON(viewKey(bvid));
+  if (hit !== undefined) return { code: 0, data: hit };
+  const body = await (await request(endpoint("/x/web-interface/view", { bvid }))).json();
+  if (body?.code === 0 && body.data && typeof body.data === "object") cacheSetJSON(viewKey(bvid), body.data, viewTTL);
+  return body;
+}
+
+function forgetView(ref) {
+  if (ref?.kind === "video" && /^BV[a-zA-Z0-9]+$/.test(ref.id)) cacheDelete(viewKey(ref.id));
 }
 
 export async function view(ref, { allowMissing = false } = {}) {
@@ -60,10 +82,9 @@ export async function view(ref, { allowMissing = false } = {}) {
     };
   }
   if (ref?.kind !== "video" || !/^BV[a-zA-Z0-9]+$/.test(ref.id)) throw { code: "permission" };
-  const response = await request(endpoint("/x/web-interface/view", { bvid: ref.id }));
-  const body = await response.json();
+  const body = await viewBody(ref.id);
   if (allowMissing && body?.code === -404) return null;
-  return payload(response, () => body);
+  return payload(null, () => body);
 }
 
 function videoComment(reply, creator, pinned = false, preview = false) {
@@ -238,6 +259,7 @@ export async function editVideoFavoriteFolders({ data, secret }) {
   await post("/x/v3/fav/resource/deal", {
     rid: aid, type: 2, add_media_ids: add.join(","), del_media_ids: remove.join(","), csrf
   });
+  forgetView(ref);
   return {};
 }
 
@@ -255,20 +277,27 @@ export async function editVideo({ ref, interaction, actionID, enabled = false, r
       const fid = positiveID(row.owner?.mid);
       if (!fid) throw { code: "permission" };
       await post("/x/relation/modify", { fid, act: enabled ? 1 : 2, re_src: 11, csrf });
+      bumpCacheGeneration(relationGeneration);
       return { following: enabled };
     }
     case "like":
       await post("/x/web-interface/archive/like", { aid, like: enabled ? 1 : 2, csrf });
+      forgetView(ref);
       return { liked: enabled };
-    case "favorite":
-      return setFavorite(aid, owner, enabled, csrf);
+    case "favorite": {
+      const result = await setFavorite(aid, owner, enabled, csrf);
+      forgetView(ref);
+      return result;
+    }
     case "action":
       switch (actionID) {
         case "coin":
           await post("/x/web-interface/coin/add", { aid, multiply: 1, select_like: 0, csrf });
+          forgetView(ref);
           return { actionStates: { coin: true }, message: "\u5df2\u6295\u51fa 1 \u679a\u786c\u5e01" };
         case "triple": {
           const result = await post("/x/web-interface/archive/like/triple", { aid, csrf });
+          forgetView(ref);
           const coined = result?.coin === true;
           const partial = result?.like !== true || !coined || result?.fav !== true;
           return {
@@ -299,6 +328,7 @@ export async function editVideo({ ref, interaction, actionID, enabled = false, r
       const result = await post("/x/v2/reply/add", {
         oid: aid, type: 1, message, root: root || "0", parent: parent || "0", csrf
       });
+      forgetView(ref);
       return { comment: videoComment(result?.reply, positiveID(row.owner?.mid)) };
     }
     default:

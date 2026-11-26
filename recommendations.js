@@ -3,7 +3,7 @@ import { archiveCategoryNames } from "./categories.js";
 import { getCourseDetail } from "./course.js";
 import { getLiveDetail } from "./live.js";
 import { getSeriesDetail } from "./series.js";
-import { videoDiscussion, videoEngagement } from "./video.js";
+import { videoDiscussion, videoEngagement, viewBody } from "./video.js";
 
 const site = "https://api.bilibili.com";
 const recommendationID = "recommendations";
@@ -230,12 +230,14 @@ export async function getItem({ kind, id, includeSections = false, signedIn = fa
   if (kind === "course") return getCourseDetail(id, { includeSections, signedIn, loadDiscussion: videoDiscussion });
   if (kind === "live") return getLiveDetail(id, { signedIn });
   if (kind !== "video" || !/^BV[a-zA-Z0-9]+$/.test(id)) throw { code: "unsupported" };
-  const endpointPath = includeSections ? "/x/web-interface/view/detail" : "/x/web-interface/view";
-  const response = await request(endpoint(endpointPath, { bvid: id }));
-  const body = await response.json();
+  // The detail bundle embeds per-user follow state and stays uncached; the plain
+  // archive read shares the cache entry used by comments and playback.
+  const body = includeSections
+    ? await (await request(endpoint("/x/web-interface/view/detail", { bvid: id }))).json()
+    : await viewBody(id);
   if (body?.code === -403) throw { code: "permission" };
   if (body?.code === -404) throw { code: "expired" };
-  const data = await payload(response, () => body);
+  const data = await payload(null, () => body);
   const row = includeSections ? data?.View : data;
   const item = video(row);
   if (!item) throw { code: "plugin" };
