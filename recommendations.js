@@ -48,12 +48,35 @@ export function cover(value) {
   return source ? source + thumbnailSuffix : undefined;
 }
 
+function hasMultiCreators() {
+  return typeof host !== "undefined" && host?.features?.multiCreators === true;
+}
+
 function creator(owner) {
   const id = String(owner?.mid ?? "");
   const name = text(owner?.name);
   if (!name || !/^[1-9]\d*$/.test(id)) return undefined;
   const avatar = coverSource(owner.face);
   return { id, name, avatarURL: avatar ? avatar + "@96w_96h_1c.jpg" : undefined };
+}
+
+function staffCreators(row, primary) {
+  if (!hasMultiCreators() || !Array.isArray(row?.staff) || row.staff.length < 2) return undefined;
+  const list = [];
+  const seen = new Set();
+  for (const member of row.staff) {
+    const entry = creator(member);
+    if (!entry || seen.has(entry.id)) continue;
+    seen.add(entry.id);
+    if (primary && entry.id === primary.id) {
+      entry.following = primary.following === true;
+    }
+    list.push(entry);
+  }
+  if (primary && !seen.has(primary.id)) {
+    list.unshift({ ...primary });
+  }
+  return list.length > 1 ? list : undefined;
 }
 
 export function video(row) {
@@ -243,6 +266,10 @@ export async function getItem({ kind, id, includeSections = false, signedIn = fa
   if (!item) throw { code: "plugin" };
   if (item.creator && includeSections) {
     item.creator.following = data.Card?.following === true;
+  }
+  if (includeSections) {
+    const creators = staffCreators(row, item.creator);
+    if (creators) item.creators = creators;
   }
   item.subtitle = text(row.desc) || undefined;
   item.videoDetails = {
